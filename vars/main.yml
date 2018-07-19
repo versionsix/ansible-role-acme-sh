@@ -1,0 +1,4 @@
+---
+acme_sh_execute: "{{acme_sh_home_dir}}/acme.sh
+    --home \"{{acme_sh_home_dir}}\"
+    {% if acme_sh_test|d() | bool %}--test{% endif %} {{item}}"

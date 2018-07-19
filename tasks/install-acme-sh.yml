@@ -1,0 +1,67 @@
+---
+# This task emulates ./acme.sh --install behavior to make this task as
+# ansible friendly as possible.
+# We do not want to mess around in our system and randomly create files in HOME
+- name: Ensure {{acme_sh_user}} user exists
+  user:
+    name: "{{acme_sh_user}}"
+    group: sudo
+    comment: User for letsencrypt certificate renewal
+    create_home: False
+
+- name: Ensures {{acme_sh_home_dir}} dir exists
+  file:
+    path: "{{acme_sh_home_dir}}"
+    state: directory
+    owner: "{{acme_sh_user}}"
+
+- name: Clone git repo of acme-sh
+  git:
+    repo: 'https://github.com/Neilpang/acme.sh.git'
+    dest: "{{acme_sh_home_dir}}"
+    version: "{{acme_sh_version}}"
+  become: yes
+  become_user: "{{acme_sh_user}}"
+
+- name: Fix return 0 instead of 2 stdrr when diong double issue.
+  lineinfile:
+    path: "{{acme_sh_home_dir}}/acme.sh"
+    regexp: "RENEW_SKIP=2"
+    line: "RENEW_SKIP=0"
+
+- name: Check if {{acme_sh_home_dir}}/account.conf exists
+  stat:
+    path: "{{acme_sh_home_dir}}/account.conf"
+  register: account_conf_file
+
+- name: Ensures {{acme_sh_home_dir}}/account.conf exists
+  copy:
+    owner: "{{acme_sh_user}}"
+    dest: "{{acme_sh_home_dir}}/account.conf"
+    backup: true
+    content: |
+      #LOG_FILE="/home/acme/.acme.sh/acme.sh.log"
+      #LOG_LEVEL=1
+      #NO_TIMESTAMP=1
+  when: not account_conf_file.stat.exists
+
+- name: Convert env vars to export
+  set_fact:
+    export_env: "{{export_env|default('') + 'export ' + item.key +'=\"' + (item.value|string) + '\"\n'}}"
+  loop: "{{acme_sh_env|dict2items}}"
+
+- name: Ensures {{acme_sh_home_dir}}/acme.sh.env exists
+  copy:
+    owner: "{{acme_sh_user}}"
+    dest: "{{acme_sh_home_dir}}/acme.sh.env"
+    content: |
+      alias acme.sh="{{acme_sh_home_dir}}/acme.sh"
+      export LE_WORKING_DIR="{{acme_sh_home_dir}}"
+      {{export_env}}
+
+- name: Cron for acme-sh certificate renewal check
+  cron:
+    name: "Check for acme-sh certificate renewal"
+    minute: "{{ 59 |random(seed=inventory_hostname) }}"
+    hour: "5" # Do at night to prevent user interruption
+    job: " . \"{{acme_sh_home_dir}}/acme.sh.env\"; {{acme_sh_home_dir}}/acme.sh --cron --home {{acme_sh_home_dir}} > /dev/null"

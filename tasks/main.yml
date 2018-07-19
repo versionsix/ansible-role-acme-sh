@@ -1,0 +1,18 @@
+---
+- name: Check if acme.sh is already installed
+  stat:
+    path: "{{acme_sh_home_dir}}"
+  register: dir_acme_sh
+
+- name: Install acme.sh
+  include_tasks: install-acme-sh.yml
+  when: not dir_acme_sh.stat.exists
+
+- name: Run acme.sh command(s)
+  become: true
+  shell: "RENEW_SKIP=0 {{acme_sh_execute}}"
+  loop: "{{command}}"
+  loop_control:
+    label: "{{acme_sh_execute}}"
+  environment: "{{acme_sh_env}}"
+  register: command_result

@@ -1,0 +1,8 @@
+---
+acme_sh_home_dir: "/opt/acme-sh"
+acme_sh_user: acme
+acme_sh_env:
+  example_env: myApiKey
+  second_example_env: myApiSecret
+acme_sh_version: c38ef9023bb52a512313218cbf6e4f20e1a29283
+acme_sh_test: False
